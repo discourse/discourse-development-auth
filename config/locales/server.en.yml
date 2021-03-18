@@ -1,0 +1,3 @@
+en:
+  site_settings:
+    development_authentication_enabled: Enable discourse-development-auth fake authentiation provider
