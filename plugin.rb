@@ -28,6 +28,7 @@ module ::OmniAuth
         location
         description
         image
+        groups
       }
 
       COOKIE = "development-auth-defaults"
@@ -38,7 +39,7 @@ module ::OmniAuth
           data = request.params.slice(*FIELDS)
 
           r = Rack::Response.new
-          r.set_cookie(COOKIE, {value: data.to_json, path: "/", expires: 1.month.from_now})
+          r.set_cookie(COOKIE, { value: data.to_json, path: "/", expires: 1.month.from_now })
 
           uri = URI.parse(callback_path)
           uri.query = URI.encode_www_form(data)
@@ -63,13 +64,15 @@ module ::OmniAuth
         defaults["uid"] = SecureRandom.hex(8) unless defaults["uid"].present?
         defaults["email_verified"] = "true" unless defaults["email_verified"].present?
 
-        OmniAuth::Form.build(:title => "Fake Authentication Provider") do
+        OmniAuth::Form.build(title: "Fake Authentication Provider") do
           html "\n<input type='hidden' name='authenticity_token' value='#{token}'/>"
 
           FIELDS.each do |f|
             label_field(f, f)
             if f == "email_verified"
               html "<input type='checkbox' id='#{f}' name='#{f}' value='true' #{"checked" if defaults[f] == "true"}/>"
+            elsif f == "groups"
+              html "<input type='text' id='#{f}' name='#{f}' value='#{defaults[f]}' placeholder='id1:group1,id2:group2...'/>"
             else
               html "<input type='text' id='#{f}' name='#{f}' value='#{defaults[f]}'/>"
             end
@@ -86,10 +89,14 @@ module ::OmniAuth
         info = request.params.slice(*FIELDS)
         uid = info.delete("uid")
         email_verified = (info.delete("email_verified") == "true")
+        groups = info.delete("groups")&.split(",").map do |g|
+          id, name = g.split(":", 2)
+          { id: id, name: name }
+        end
         OmniAuth::Utils.deep_merge(super, {
           'uid' => uid,
           'info' => info,
-          'extra' => { "raw_info" => { "email_verified" => email_verified } }
+          'extra' => { "raw_info" => { "email_verified" => email_verified }, "raw_groups" => groups }
         })
       end
     end
@@ -119,6 +126,18 @@ class DevelopmentAuthenticator < Auth::ManagedAuthenticator
 
   def primary_email_verified?(auth)
     auth['extra']['raw_info']['email_verified']
+  end
+
+  def after_authenticate(auth_token, existing_account: nil)
+    result = super
+    if provides_groups? && (groups = auth_token[:extra][:raw_groups]).any?
+      result.associated_groups = groups.map { |group| group.slice(:id, :name) }
+    end
+    result
+  end
+
+  def provides_groups?
+    SiteSetting.development_authentication_provides_groups
   end
 end
 
