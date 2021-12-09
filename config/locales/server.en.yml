@@ -1,3 +1,4 @@
 en:
   site_settings:
     development_authentication_enabled: Enable discourse-development-auth fake authentiation provider
+    development_authentication_provides_groups: Enable group support for discourse-development-auth

@@ -1,2 +1,3 @@
 plugins:
   development_authentication_enabled: true
+  development_authentication_provides_groups: true
