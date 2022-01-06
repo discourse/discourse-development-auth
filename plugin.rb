@@ -164,10 +164,10 @@ after_initialize do
       username
       name
     }
-    ADVANCED_FIELDS = SingleSignOn::ACCESSORS.map(&:to_s) - SIMPLE_FIELDS
+    ADVANCED_FIELDS = DiscourseConnectBase::ACCESSORS.map(&:to_s) - SIMPLE_FIELDS
     FIELDS = SIMPLE_FIELDS + ADVANCED_FIELDS
 
-    BOOLS = SingleSignOn::BOOLS.map(&:to_s)
+    BOOLS = DiscourseConnectBase::BOOLS.map(&:to_s)
 
     COOKIE = "development-auth-discourseconnect-defaults"
 
@@ -176,7 +176,7 @@ after_initialize do
 
       params.require(:sso)
       @payload = request.query_string
-      sso = SingleSignOn.parse(@payload, SiteSetting.discourse_connect_secret)
+      sso = DiscourseConnectBase.parse(@payload, SiteSetting.discourse_connect_secret)
 
       if request.method == "POST" && params[:external_id]
         data = {}
@@ -217,7 +217,7 @@ after_initialize do
     mount ::DevelopmentAuth::Engine, at: "/development-auth"
   end
 
-  DiscourseSingleSignOn.singleton_class.prepend(Module.new do
+  DiscourseConnect.singleton_class.prepend(Module.new do
     def sso_url
       if SiteSetting.development_authentication_enabled
         return "#{Discourse.base_path}/development-auth/fake-discourse-connect"
