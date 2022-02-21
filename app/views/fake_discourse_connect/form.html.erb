@@ -114,6 +114,14 @@
             <% end %>
           <% end %>
         </details>
+        <% unless @custom_fields.empty? %>
+          <details>
+            <summary>Custom User Fields</summary>
+            <% @custom_fields.each do |user_field_frindly_name, f| %>
+              <label for='<%= f %>'><%= user_field_frindly_name %>:</label><input type='text' id='<%= f %>' name='<%= f %>' value='<%= @defaults[f] %>'/>
+            <% end %>
+          </details>
+        <% end %>
         <button type='submit'>Go</button>
       </form>
    </body>

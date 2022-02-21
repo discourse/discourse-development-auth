@@ -171,6 +171,10 @@ after_initialize do
 
     COOKIE = "development-auth-discourseconnect-defaults"
 
+    def custom_fields
+      ::UserField.all.pluck(:id, :name)&.map{|id, name| {"#{name}": "custom.user_field_#{id}"}}&.reduce(:merge!) || {}
+    end
+
     def auth
       raise "DISCOURSE_DEV_ALLOW_ANON_TO_IMPERSONATE must equal 1 to use this plugin" if ENV['DISCOURSE_DEV_ALLOW_ANON_TO_IMPERSONATE'] != "1"
 
@@ -180,8 +184,12 @@ after_initialize do
 
       if request.method == "POST" && params[:external_id]
         data = {}
-        FIELDS.each do |f|
-          sso.send(:"#{f}=", params[f])
+        (FIELDS + custom_fields.values).each do |f|
+          if field = f.to_s[/^custom\.(.+)$/, 1]
+            sso.custom_fields[field] = params[f]
+          else
+            sso.send(:"#{f}=", params[f])
+          end
           data[f] = params[f]
           cookies[COOKIE] = { value: data.to_json, path: "/", expires: 1.month.from_now }
         end
@@ -202,6 +210,7 @@ after_initialize do
     def render_form
       @simple_fields = SIMPLE_FIELDS
       @advanced_fields = ADVANCED_FIELDS
+      @custom_fields = custom_fields
       @bools = BOOLS
       append_view_path(File.expand_path("../app/views", __FILE__))
       render template: "fake_discourse_connect/form", layout: false
