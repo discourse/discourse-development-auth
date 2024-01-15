@@ -6,7 +6,9 @@
 # authors: David Taylor
 # url: https://github.com/discourse/discourse-development-auth
 
-raise "discourse-development-auth is highly insecure and should not be installed in production" if Rails.env.production?
+if Rails.env.production?
+  raise "discourse-development-auth is highly insecure and should not be installed in production"
+end
 
 enabled_site_setting :development_authentication_enabled
 
@@ -17,7 +19,7 @@ module ::OmniAuth
     class Development
       include ::OmniAuth::Strategy
 
-      FIELDS = %w{
+      FIELDS = %w[
         uid
         name
         email
@@ -29,13 +31,15 @@ module ::OmniAuth
         description
         image
         groups
-      }
+      ]
 
       COOKIE = "development-auth-defaults"
 
       def request_phase
-        return fail!("DISCOURSE_DEV_ALLOW_ANON_TO_IMPERSONATE must equal 1 to use this plugin") if ENV['DISCOURSE_DEV_ALLOW_ANON_TO_IMPERSONATE'] != "1"
-        if (env['REQUEST_METHOD'] == 'POST') && (request.params['uid'])
+        if ENV["DISCOURSE_DEV_ALLOW_ANON_TO_IMPERSONATE"] != "1"
+          return fail!("DISCOURSE_DEV_ALLOW_ANON_TO_IMPERSONATE must equal 1 to use this plugin")
+        end
+        if (env["REQUEST_METHOD"] == "POST") && (request.params["uid"])
           data = request.params.slice(*FIELDS)
 
           r = Rack::Response.new
@@ -52,15 +56,21 @@ module ::OmniAuth
       end
 
       def build_form
-        token = begin
-          verifier = CSRFTokenVerifier.new
-          verifier.call(env)
-          verifier.form_authenticity_token
-        end
+        token =
+          begin
+            verifier = CSRFTokenVerifier.new
+            verifier.call(env)
+            verifier.form_authenticity_token
+          end
 
         request = Rack::Request.new(env)
         raw_defaults = request.cookies[COOKIE] || "{}"
-        defaults = JSON.parse(raw_defaults) rescue {}
+        defaults =
+          begin
+            JSON.parse(raw_defaults)
+          rescue StandardError
+            {}
+          end
         defaults["uid"] = SecureRandom.hex(8) unless defaults["uid"].present?
         defaults["email_verified"] = "true" unless defaults["email_verified"].present?
 
@@ -81,7 +91,9 @@ module ::OmniAuth
       end
 
       def callback_phase
-        return fail!("DISCOURSE_DEV_ALLOW_ANON_TO_IMPERSONATE must equal 1 to use this plugin") if ENV['DISCOURSE_DEV_ALLOW_ANON_TO_IMPERSONATE'] != "1"
+        if ENV["DISCOURSE_DEV_ALLOW_ANON_TO_IMPERSONATE"] != "1"
+          return fail!("DISCOURSE_DEV_ALLOW_ANON_TO_IMPERSONATE must equal 1 to use this plugin")
+        end
         super
       end
 
@@ -89,15 +101,27 @@ module ::OmniAuth
         info = request.params.slice(*FIELDS)
         uid = info.delete("uid")
         email_verified = (info.delete("email_verified") == "true")
-        groups = info.delete("groups")&.split(",").map do |g|
-          id, name = g.split(":", 2)
-          { id: id, name: name }
-        end
-        OmniAuth::Utils.deep_merge(super, {
-          'uid' => uid,
-          'info' => info,
-          'extra' => { "raw_info" => { "email_verified" => email_verified }, "raw_groups" => groups }
-        })
+        groups =
+          info
+            .delete("groups")
+            &.split(",")
+            &.map do |g|
+              id, name = g.split(":", 2)
+              { id: id, name: name }
+            end
+        OmniAuth::Utils.deep_merge(
+          super,
+          {
+            "uid" => uid,
+            "info" => info,
+            "extra" => {
+              "raw_info" => {
+                "email_verified" => email_verified,
+              },
+              "raw_groups" => groups,
+            },
+          },
+        )
       end
     end
   end
@@ -105,7 +129,7 @@ end
 
 class DevelopmentAuthenticator < Auth::ManagedAuthenticator
   def name
-    'developmentauth'
+    "developmentauth"
   end
 
   def can_revoke?
@@ -125,7 +149,7 @@ class DevelopmentAuthenticator < Auth::ManagedAuthenticator
   end
 
   def primary_email_verified?(auth)
-    auth['extra']['raw_info']['email_verified']
+    auth["extra"]["raw_info"]["email_verified"]
   end
 
   def after_authenticate(auth_token, existing_account: nil)
@@ -143,7 +167,6 @@ end
 
 auth_provider authenticator: DevelopmentAuthenticator.new
 
-
 ### DiscourseConnect
 after_initialize do
   module ::DevelopmentAuth
@@ -156,14 +179,12 @@ after_initialize do
   class ::DevelopmentAuth::FakeDiscourseConnectController < ::ApplicationController
     requires_plugin "discourse-development-auth"
 
-    skip_before_action :check_xhr, :preload_json, :redirect_to_login_if_required, :verify_authenticity_token
+    skip_before_action :check_xhr,
+                       :preload_json,
+                       :redirect_to_login_if_required,
+                       :verify_authenticity_token
 
-    SIMPLE_FIELDS = %w{
-      external_id
-      email
-      username
-      name
-    }
+    SIMPLE_FIELDS = %w[external_id email username name]
     ADVANCED_FIELDS = DiscourseConnectBase::ACCESSORS.map(&:to_s) - SIMPLE_FIELDS
     FIELDS = SIMPLE_FIELDS + ADVANCED_FIELDS
 
@@ -172,11 +193,17 @@ after_initialize do
     COOKIE = "development-auth-discourseconnect-defaults"
 
     def custom_fields
-      ::UserField.all.pluck(:id, :name)&.map{|id, name| {"#{name}": "custom.user_field_#{id}"}}&.reduce(:merge!) || {}
+      ::UserField
+        .all
+        .pluck(:id, :name)
+        &.map { |id, name| { "#{name}": "custom.user_field_#{id}" } }
+        &.reduce(:merge!) || {}
     end
 
     def auth
-      raise "DISCOURSE_DEV_ALLOW_ANON_TO_IMPERSONATE must equal 1 to use this plugin" if ENV['DISCOURSE_DEV_ALLOW_ANON_TO_IMPERSONATE'] != "1"
+      if ENV["DISCOURSE_DEV_ALLOW_ANON_TO_IMPERSONATE"] != "1"
+        raise "DISCOURSE_DEV_ALLOW_ANON_TO_IMPERSONATE must equal 1 to use this plugin"
+      end
 
       params.require(:sso)
       @payload = request.query_string
@@ -198,7 +225,12 @@ after_initialize do
       end
 
       raw_defaults = cookies[COOKIE] || "{}"
-      @defaults = JSON.parse(raw_defaults) rescue {}
+      @defaults =
+        begin
+          JSON.parse(raw_defaults)
+        rescue StandardError
+          {}
+        end
       @defaults["return_sso_url"] = sso.return_sso_url
       @defaults["nonce"] = sso.nonce
       @defaults["external_id"] = SecureRandom.hex(8) unless @defaults["external_id"].present?
@@ -215,30 +247,32 @@ after_initialize do
       append_view_path(File.expand_path("../app/views", __FILE__))
       render template: "fake_discourse_connect/form", layout: false
     end
-  end 
+  end
 
   DevelopmentAuth::Engine.routes.draw do
     get "/fake-discourse-connect" => "fake_discourse_connect#auth"
     post "/fake-discourse-connect" => "fake_discourse_connect#auth"
   end
 
-  Discourse::Application.routes.append do
-    mount ::DevelopmentAuth::Engine, at: "/development-auth"
-  end
+  Discourse::Application.routes.append { mount ::DevelopmentAuth::Engine, at: "/development-auth" }
 
-  DiscourseConnect.singleton_class.prepend(Module.new do
-    def sso_url
-      if SiteSetting.development_authentication_enabled
-        return "#{Discourse.base_path}/development-auth/fake-discourse-connect"
+  DiscourseConnect.singleton_class.prepend(
+    Module.new do
+      def sso_url
+        if SiteSetting.development_authentication_enabled
+          return "#{Discourse.base_path}/development-auth/fake-discourse-connect"
+        end
+        super
       end
-      super
-    end
-  end)
+    end,
+  )
 
-  EnableSsoValidator.prepend(Module.new do
-    def valid_value?(val)
-      return true if SiteSetting.development_authentication_enabled
-      super
-    end
-  end)
+  EnableSsoValidator.prepend(
+    Module.new do
+      def valid_value?(val)
+        return true if SiteSetting.development_authentication_enabled
+        super
+      end
+    end,
+  )
 end
