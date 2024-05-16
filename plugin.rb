@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 # name: discourse-development-auth
-# about: A fake authentication provider for development puposes only
+# about: A fake authentication provider for development purposes only
 # version: 1.0
 # authors: David Taylor
 # url: https://github.com/discourse/discourse-development-auth
@@ -11,8 +11,6 @@ if Rails.env.production?
 end
 
 enabled_site_setting :development_authentication_enabled
-
-PLUGIN_NAME = "discourse-development-auth"
 
 module ::OmniAuth
   module Strategies
@@ -170,11 +168,16 @@ auth_provider authenticator: DevelopmentAuthenticator.new
 ### DiscourseConnect
 after_initialize do
   module ::DevelopmentAuth
+    PLUGIN_NAME = "discourse-development-auth"
+
     class Engine < ::Rails::Engine
       engine_name PLUGIN_NAME
       isolate_namespace ::DevelopmentAuth
     end
   end
+
+  require_relative "lib/development_auth/discourse_connect_extension"
+  require_relative "lib/development_auth/enable_sso_validator_extension"
 
   class ::DevelopmentAuth::FakeDiscourseConnectController < ::ApplicationController
     requires_plugin "discourse-development-auth"
@@ -256,23 +259,6 @@ after_initialize do
 
   Discourse::Application.routes.append { mount ::DevelopmentAuth::Engine, at: "/development-auth" }
 
-  DiscourseConnect.singleton_class.prepend(
-    Module.new do
-      def sso_url
-        if SiteSetting.development_authentication_enabled
-          return "#{Discourse.base_path}/development-auth/fake-discourse-connect"
-        end
-        super
-      end
-    end,
-  )
-
-  EnableSsoValidator.prepend(
-    Module.new do
-      def valid_value?(val)
-        return true if SiteSetting.development_authentication_enabled
-        super
-      end
-    end,
-  )
+  DiscourseConnect.singleton_class.prepend(DevelopmentAuth::DiscourseConnectExtension)
+  EnableSsoValidator.prepend(DevelopmentAuth::EnableSsoValidatorExtension)
 end
