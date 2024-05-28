@@ -69,8 +69,8 @@ module ::OmniAuth
           rescue StandardError
             {}
           end
-        defaults["uid"] = SecureRandom.hex(8) unless defaults["uid"].present?
-        defaults["email_verified"] = "true" unless defaults["email_verified"].present?
+        defaults["uid"] = SecureRandom.hex(8) if defaults["uid"].blank?
+        defaults["email_verified"] = "true" if defaults["email_verified"].blank?
 
         OmniAuth::Form.build(title: "Fake Authentication Provider") do
           html "\n<input type='hidden' name='authenticity_token' value='#{token}'/>"
@@ -236,7 +236,7 @@ after_initialize do
         end
       @defaults["return_sso_url"] = sso.return_sso_url
       @defaults["nonce"] = sso.nonce
-      @defaults["external_id"] = SecureRandom.hex(8) unless @defaults["external_id"].present?
+      @defaults["external_id"] = SecureRandom.hex(8) if @defaults["external_id"].blank?
       render_form
     end
 
