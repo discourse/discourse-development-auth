@@ -4,3 +4,5 @@ en:
       developmentauth:
         title: DevelopmentAuth
         name: DevelopmentAuth
+    discourse_development_auth:
+      title: "Development Auth"
