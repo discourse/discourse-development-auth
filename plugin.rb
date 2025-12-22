@@ -45,7 +45,7 @@ module ::OmniAuth
 
           uri = URI.parse(callback_path)
           uri.query = URI.encode_www_form(data)
-          r.redirect(uri)
+          r.redirect(uri.to_s)
 
           return r.finish
         end
